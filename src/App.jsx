@@ -47,6 +47,10 @@ export default function NeonDodgeGame() {
 
     mq.addEventListener("change", update);
 
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js");
+    }
+
     return () => mq.removeEventListener("change", update);
   }, []);
 
