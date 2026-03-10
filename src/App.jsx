@@ -32,6 +32,74 @@ export default function NeonDodgeGame() {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
+  const isMobile = window.innerWidth < 600;
+  const mobileScale = isMobile ? 0.7 : 1;
+
+  const [isTouchDevice, setIsTouchDevice] = useState(
+    typeof window !== "undefined" &&
+      window.matchMedia("(pointer: coarse)").matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+
+    const update = () => setIsTouchDevice(mq.matches);
+
+    mq.addEventListener("change", update);
+
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  const joystickRef = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    x: 0,
+    y: 0,
+    max: 60,
+  });
+
+  function handleJoyStart(e) {
+    const touch = e.touches[0];
+    const j = joystickRef.current;
+
+    j.active = true;
+    j.startX = touch.clientX;
+    j.startY = touch.clientY;
+  }
+
+  function handleJoyMove(e) {
+    const j = joystickRef.current;
+    if (!j.active) return;
+
+    const touch = e.touches[0];
+    const dx = touch.clientX - j.startX;
+    const dy = touch.clientY - j.startY;
+
+    const dist = Math.hypot(dx, dy);
+    const max = j.max;
+
+    const nx = dist > max ? (dx / dist) * max : dx;
+    const ny = dist > max ? (dy / dist) * max : dy;
+
+    j.x = nx;
+    j.y = ny;
+
+    const g = gameRef.current;
+    g.ix = nx / max;
+    g.iy = ny / max;
+  }
+
+  function handleJoyEnd() {
+    const j = joystickRef.current;
+    j.active = false;
+    j.x = 0;
+    j.y = 0;
+
+    const g = gameRef.current;
+    g.ix = 0;
+    g.iy = 0;
+  }
 
   // game state stored in refs for smooth loop
   const gameRef = useRef({
@@ -97,7 +165,9 @@ export default function NeonDodgeGame() {
 
   // Load best score
   useEffect(() => {
-    const best = Number(localStorage.getItem("neon_dodge_best") || 0);
+    const best = Math.floor(
+      Number(localStorage.getItem("neon_dodge_best") || 0),
+    );
     gameRef.current.best = best;
     setUi((u) => ({ ...u, best }));
   }, []);
@@ -114,7 +184,7 @@ export default function NeonDodgeGame() {
 
       // keep a nice aspect ratio
       const targetW = rect.width;
-      const targetH = Math.max(420, rect.height || 560);
+      const targetH = rect.height;
 
       c.width = Math.floor(targetW * dpr);
       c.height = Math.floor(targetH * dpr);
@@ -282,7 +352,7 @@ export default function NeonDodgeGame() {
     g.py = g.h * 0.5;
     g.vx = 0;
     g.vy = 0;
-    g.r = 8;
+    g.r = 8 * mobileScale;
     g.lives = 3;
     g.invuln = 1.0;
 
@@ -328,7 +398,7 @@ export default function NeonDodgeGame() {
     g.running = false;
 
     if (g.score > g.best) {
-      g.best = g.score;
+      g.best = Math.floor(g.score);
       localStorage.setItem("neon_dodge_best", String(g.best));
     }
 
@@ -429,7 +499,7 @@ export default function NeonDodgeGame() {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       type,
-      r: 22, // bigger than enemies
+      r: 22 * mobileScale,
       spawnTime: g.t,
     });
   }
@@ -513,22 +583,22 @@ export default function NeonDodgeGame() {
 
   function spawnEnemy() {
     const g = gameRef.current;
-
+    const spawnOffset = isMobile ? 120 : 40;
     const side = Math.floor(rand(0, 4));
     let x = 0,
       y = 0;
 
     if (side === 0) {
       x = rand(0, g.w);
-      y = -40;
+      y = -spawnOffset;
     } else if (side === 1) {
-      x = g.w + 40;
+      x = g.w + spawnOffset;
       y = rand(0, g.h);
     } else if (side === 2) {
       x = rand(0, g.w);
-      y = g.h + 40;
+      y = g.h + spawnOffset;
     } else {
-      x = -40;
+      x = -spawnOffset;
       y = rand(0, g.h);
     }
 
@@ -555,7 +625,7 @@ export default function NeonDodgeGame() {
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      r: rand(10, 22),
+      r: rand(10, 22) * mobileScale,
       w: rand(0.6, 1.2),
       huePick,
       attackType,
@@ -577,7 +647,7 @@ export default function NeonDodgeGame() {
         vy: Math.sin(a) * sp,
         life: rand(0.25, 0.9),
         max: 1,
-        r: rand(1.5, 4.5),
+        r: rand(1.5, 4.5) * mobileScale,
         pick: colorPick,
       });
     }
@@ -1173,14 +1243,15 @@ export default function NeonDodgeGame() {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 10,
-        padding: "10px 12px",
+        gap: isMobile ? 6 : 10,
+        padding: isMobile ? "6px 8px" : "10px 12px",
         borderRadius: 999,
         background: "rgba(255,255,255,0.06)",
         border: "1px solid rgba(255,255,255,0.12)",
         backdropFilter: "blur(10px)",
         WebkitBackdropFilter: "blur(10px)",
         boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
+        fontSize: isMobile ? 12 : 14,
       }}
     >
       {children}
@@ -1229,11 +1300,24 @@ export default function NeonDodgeGame() {
     );
   };
 
+  const mobileBtn = {
+    width: 50,
+    height: 50,
+    borderRadius: "50%",
+    border: "1px solid rgba(255,255,255,0.25)",
+    background: "rgba(255,255,255,0.08)",
+    color: "white",
+    fontSize: 20,
+    backdropFilter: "blur(10px)",
+    WebkitBackdropFilter: "blur(10px)",
+  };
+
   return (
     <div
       style={{
-        width: "100%",
-        height: "100%",
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
         background:
           "radial-gradient(1200px 600px at 30% 20%, rgba(124,58,237,0.18), transparent 50%), radial-gradient(900px 600px at 80% 75%, rgba(34,211,238,0.16), transparent 55%), #060612",
         color: palette.text,
@@ -1260,13 +1344,19 @@ export default function NeonDodgeGame() {
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            padding: "12px 20px",
+            padding: isMobile ? "6px 10px" : "12px 20px",
             background: "rgba(0,0,0,0.4)",
             zIndex: 10,
           }}
         >
           <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3 }}>
+            <div
+              style={{
+                fontSize: window.innerWidth < 600 ? 16 : 22,
+                fontWeight: 800,
+                letterSpacing: -0.3,
+              }}
+            >
               Nova Pulse
             </div>
           </div>
@@ -1282,13 +1372,31 @@ export default function NeonDodgeGame() {
             {pill(
               <>
                 <span style={{ opacity: 0.8, fontSize: 13 }}>Score</span>
-                <span style={{ fontWeight: 800 }}>{ui.score}</span>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    minWidth: 70,
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {ui.score}
+                </span>
               </>,
             )}
             {pill(
               <>
                 <span style={{ opacity: 0.8, fontSize: 13 }}>Best</span>
-                <span style={{ fontWeight: 800 }}>{ui.best}</span>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    minWidth: 70,
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {ui.best}
+                </span>
               </>,
             )}
             {pill(
@@ -1314,6 +1422,7 @@ export default function NeonDodgeGame() {
             position: "relative",
             width: "100%",
             height: "100%",
+            touchAction: "none",
             borderRadius: 0,
             overflow: "hidden",
             border: "none",
@@ -1322,6 +1431,53 @@ export default function NeonDodgeGame() {
           }}
         >
           <canvas ref={canvasRef} style={{ display: "block" }} />
+
+          {/* Mobile Joystick */}
+          {isTouchDevice && (
+            <>
+              {/* Joystick */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 40,
+                  left: 40,
+                  width: 120,
+                  height: 120,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  touchAction: "none",
+                }}
+                onTouchStart={handleJoyStart}
+                onTouchMove={handleJoyMove}
+                onTouchEnd={handleJoyEnd}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    width: 50,
+                    height: 50,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.2)",
+                    transform: `translate(${joystickRef.current.x + 35}px, ${joystickRef.current.y + 35}px)`,
+                  }}
+                />
+              </div>
+
+              {/* Dash Button */}
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 40,
+                  right: 40,
+                }}
+              >
+                <button onTouchStart={() => performDash(gameRef.current)}>
+                  DASH
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Start overlay */}
           {!ui.started && (
@@ -1403,15 +1559,22 @@ function OverlayCard({ title, subtitle, actions }) {
     >
       <div
         style={{
-          width: "min(520px, calc(100% - 28px))",
+          width: "min(520px, calc(100% - 24px))",
+          borderRadius: 18,
           borderRadius: 22,
-          padding: 18,
+          padding: window.innerWidth < 600 ? 14 : 18,
           border: "1px solid rgba(255,255,255,0.14)",
           background: "rgba(255,255,255,0.06)",
           boxShadow: "0 24px 60px rgba(0,0,0,0.55)",
         }}
       >
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: -0.3 }}>
+        <div
+          style={{
+            fontSize: window.innerWidth < 600 ? 18 : 22,
+            fontWeight: 900,
+            letterSpacing: -0.3,
+          }}
+        >
           {title}
         </div>
         <div
@@ -1419,6 +1582,8 @@ function OverlayCard({ title, subtitle, actions }) {
             marginTop: 8,
             color: "rgba(255,255,255,0.75)",
             lineHeight: 1.5,
+            fontSize: window.innerWidth < 600 ? 13 : 15,
+            wordBreak: "break-word",
           }}
         >
           {subtitle}
