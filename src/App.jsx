@@ -34,6 +34,7 @@ export default function NeonDodgeGame() {
   const rafRef = useRef(0);
   const isMobile = window.innerWidth < 600;
   const mobileScale = isMobile ? 0.7 : 1;
+  const audioRef = useRef(null);
 
   const [isTouchDevice, setIsTouchDevice] = useState(
     typeof window !== "undefined" &&
@@ -126,6 +127,7 @@ export default function NeonDodgeGame() {
     dashCooldownMax: 1.2,
     lastMoveDir: { x: 1, y: 0 },
     dashTrail: [],
+    playerTrail: [],
 
     // input
     ix: 0,
@@ -151,7 +153,15 @@ export default function NeonDodgeGame() {
     // effects
     shake: 0,
     lastScoreMilestone: 0,
+    timeScale: 1,
+
+    prevTrailX: 0,
+    prevTrailY: 0,
   });
+
+  useEffect(() => {
+    audioRef.current = new (window.AudioContext || window.webkitAudioContext)();
+  }, []);
 
   const [ui, setUi] = useState({
     started: false,
@@ -360,6 +370,8 @@ export default function NeonDodgeGame() {
     g.dashReady = true;
     g.lastMoveDir = { x: 1, y: 0 };
     g.dashTrail = [];
+    g.playerTrail = [];
+    g.timeScale = 1;
 
     g.enemies = [];
     g.particles = [];
@@ -375,6 +387,9 @@ export default function NeonDodgeGame() {
     g.lastScoreMilestone = 0;
 
     g.shake = 0;
+
+    g.prevTrailX = g.px;
+    g.prevTrailY = g.py;
 
     setUi((u) => ({
       ...u,
@@ -437,18 +452,13 @@ export default function NeonDodgeGame() {
     const dy = mag > 0 ? moveDir.y / mag : 0;
 
     // Create dash trail effect with particles
-    const steps = 12;
-    for (let i = 0; i < steps; i++) {
-      const t = i / steps;
-      const trailX = g.px + dx * dashDist * t;
-      const trailY = g.py + dy * dashDist * t;
-      g.dashTrail.push({
-        x: trailX,
-        y: trailY,
-        life: 0.35 - t * 0.08,
-        size: (1 - t) * 10,
-      });
-    }
+    g.dashTrail.push({
+      x1: g.px,
+      y1: g.py,
+      x2: g.px + dx * dashDist,
+      y2: g.py + dy * dashDist,
+      life: 0.25,
+    });
 
     g.px += dx * dashDist;
     g.py += dy * dashDist;
@@ -467,8 +477,12 @@ export default function NeonDodgeGame() {
   }
 
   function spawnPowerUp(g) {
-    const type =
-      Math.random() < 0.4 ? "shield" : Math.random() < 0.7 ? "speed" : "slow";
+    const types = ["shield", "speed", "slow"];
+    let type = types[Math.floor(Math.random() * types.length)];
+
+    if (g.powerUps.length && g.powerUps[g.powerUps.length - 1].type === type) {
+      type = types[(types.indexOf(type) + 1) % types.length];
+    }
 
     // spawn from screen edges
     const side = Math.floor(rand(0, 4));
@@ -539,9 +553,9 @@ export default function NeonDodgeGame() {
 
   function playSound(type) {
     try {
-      const audioContext = new (
-        window.AudioContext || window.webkitAudioContext
-      )();
+      const audioContext = audioRef.current;
+      if (!audioContext) return;
+
       const now = audioContext.currentTime;
 
       if (type === "dash") {
@@ -561,17 +575,57 @@ export default function NeonDodgeGame() {
 
         osc.start(now);
         osc.stop(now + 0.08);
-      } else if (type === "powerup") {
+      } else if (type === "speed") {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
+
+        osc.type = "sawtooth";
+
         osc.connect(gain);
         gain.connect(audioContext.destination);
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
         osc.start(now);
-        osc.stop(now + 0.15);
+        osc.stop(now + 0.25);
+      } else if (type === "slow") {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.type = "triangle";
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.35);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } else if (type === "shield") {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+
+        osc.type = "sine";
+
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(700, now + 0.2);
+
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+        osc.start(now);
+        osc.stop(now + 0.3);
       } else if (type === "hit") {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
@@ -700,6 +754,14 @@ export default function NeonDodgeGame() {
   function update(dt) {
     const g = gameRef.current;
 
+    const realDt = dt;
+
+    const slowPower = g.activePowerUps.find((p) => p.type === "slow");
+    const targetTimeScale = slowPower ? 0.35 : 1;
+    g.timeScale = lerp(g.timeScale, targetTimeScale, 3 * realDt);
+
+    const simDt = dt;
+
     // handle dash cooldown
     if (!g.dashReady) {
       g.dashCooldown -= dt;
@@ -718,7 +780,7 @@ export default function NeonDodgeGame() {
 
     // update active power-ups
     for (let i = g.activePowerUps.length - 1; i >= 0; i--) {
-      g.activePowerUps[i].duration -= dt;
+      g.activePowerUps[i].duration -= realDt;
       if (g.activePowerUps[i].duration <= 0) {
         g.activePowerUps.splice(i, 1);
       }
@@ -728,14 +790,14 @@ export default function NeonDodgeGame() {
     g.difficulty = Math.min(4, g.t * 0.06);
 
     // power-up spawn logic
-    g.powerUpSpawnTimer -= dt;
+    g.powerUpSpawnTimer -= realDt;
     if (g.powerUpSpawnTimer <= 0) {
       g.powerUpSpawnTimer = 8 - g.difficulty * 1.2;
       spawnPowerUp(g);
     }
 
     // spawn logic
-    g.spawnTimer -= dt;
+    g.spawnTimer -= realDt;
     const spawnEvery = clamp(0.6 - g.difficulty * 0.08, 0.1, 0.6);
     if (g.spawnTimer <= 0) {
       g.spawnTimer = spawnEvery;
@@ -751,7 +813,6 @@ export default function NeonDodgeGame() {
 
     // apply slow power-up to player as well
     const hasSlow = g.activePowerUps.find((p) => p.type === "slow");
-    if (hasSlow) moveSpeed *= 0.6;
 
     g.vx = g.ix * moveSpeed;
     g.vy = g.iy * moveSpeed;
@@ -761,8 +822,27 @@ export default function NeonDodgeGame() {
       g.lastMoveDir = { x: g.ix, y: g.iy };
     }
 
-    g.px += g.vx * dt;
-    g.py += g.vy * dt;
+    g.px += g.vx * simDt;
+    g.py += g.vy * simDt;
+
+    const dx = g.px - g.prevTrailX;
+    const dy = g.py - g.prevTrailY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > 8) {
+      g.playerTrail.push({
+        x: g.px,
+        y: g.py,
+        life: 0.35,
+      });
+
+      if (g.playerTrail.length > 25) {
+        g.playerTrail.shift();
+      }
+
+      g.prevTrailX = g.px;
+      g.prevTrailY = g.py;
+    }
 
     // keep in bounds with soft push
     const pad = 20;
@@ -780,8 +860,10 @@ export default function NeonDodgeGame() {
     // enemies update
     for (let i = g.enemies.length - 1; i >= 0; i--) {
       const e = g.enemies[i];
-      e.x += e.vx * dt;
-      e.y += e.vy * dt;
+
+      const enemyDt = simDt * g.timeScale;
+      e.x += e.vx * enemyDt;
+      e.y += e.vy * enemyDt;
 
       // distinct attack patterns based on type
       let ax = 0,
@@ -823,19 +905,8 @@ export default function NeonDodgeGame() {
         ay += (g.py - e.y) * 0.00025;
       }
 
-      // apply slow power-up effect
-      let speedMult = 1;
-      const hasSlow = g.activePowerUps.find((p) => p.type === "slow");
-      if (hasSlow) speedMult = 0.6;
-
-      e.vx += ax * 1000 * dt * speedMult;
-      e.vy += ay * 1000 * dt * speedMult;
-
-      // apply slow to velocity directly for smoother slowdown feel
-      if (hasSlow) {
-        e.vx *= 0.95;
-        e.vy *= 0.95;
-      }
+      e.vx += ax * 1000 * enemyDt;
+      e.vy += ay * 1000 * enemyDt;
 
       // remove if far away
       if (e.x < -120 || e.x > g.w + 120 || e.y < -120 || e.y > g.h + 120) {
@@ -891,12 +962,22 @@ export default function NeonDodgeGame() {
 
       if (dx * dx + dy * dy < (p.r + g.r) * (p.r + g.r)) {
         activatePowerUp(g, p.type);
-        playSound("powerup");
+        playSound(p.type);
         g.powerUps.splice(i, 1);
       }
     }
 
     // particles update
+
+    for (let i = g.playerTrail.length - 1; i >= 0; i--) {
+      const t = g.playerTrail[i];
+      t.life -= simDt;
+
+      if (t.life <= 0) {
+        g.playerTrail.splice(i, 1);
+      }
+    }
+
     for (let i = g.particles.length - 1; i >= 0; i--) {
       const p = g.particles[i];
       p.x += p.vx * dt;
@@ -914,14 +995,14 @@ export default function NeonDodgeGame() {
     // combo grows while alive and moving
     const speed = Math.hypot(g.vx, g.vy);
     if (speed > 40) {
-      g.comboTimer += dt;
+      g.comboTimer += realDt;
       if (g.comboTimer > 0.6) {
         g.comboTimer = 0;
         g.combo = clamp(g.combo + 1, 1, 9);
         setUi((u) => ({ ...u, combo: g.combo }));
       }
     } else {
-      g.comboTimer = Math.max(0, g.comboTimer - dt * 2.5);
+      g.comboTimer = Math.max(0, g.comboTimer - realDt * 2.5);
     }
 
     // UI sync throttled
@@ -939,6 +1020,8 @@ export default function NeonDodgeGame() {
     const w = g.w;
     const h = g.h;
 
+    const slowAmount = 1 - g.timeScale;
+
     // camera shake
     const sx = (Math.random() - 0.5) * g.shake * (g.dpr || 1);
     const sy = (Math.random() - 0.5) * g.shake * (g.dpr || 1);
@@ -949,9 +1032,6 @@ export default function NeonDodgeGame() {
 
     // apply greyscale effect if slow power-up is active
     const hasSlow = g.activePowerUps.find((p) => p.type === "slow");
-    if (hasSlow) {
-      ctx.filter = "saturate(0%) brightness(1.1)";
-    }
 
     // background gradient
     const bg = ctx.createLinearGradient(0, 0, w, h);
@@ -992,35 +1072,54 @@ export default function NeonDodgeGame() {
     blob(w * 0.2, h * 0.25, 220 * (g.dpr || 1), 0.35, "rgba(124,58,237,0.45)");
     blob(w * 0.78, h * 0.72, 260 * (g.dpr || 1), 0.28, "rgba(34,211,238,0.42)");
 
-    // dash trail - smooth particle effect
-    for (let i = g.dashTrail.length - 1; i >= 0; i--) {
-      const t = g.dashTrail[i];
-      const alpha = Math.max(0, t.life / 0.35) * 0.7;
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = "rgba(100, 255, 200, 0.95)";
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, t.size * (g.dpr || 1), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
+    if (slowAmount > 0.01) {
+      ctx.save();
 
-    // particles
-    for (const p of g.particles) {
-      const t = clamp(p.life / p.max, 0, 1);
-      const a = t;
-      ctx.globalAlpha = a;
-      const col =
-        p.pick < 0.5
-          ? "rgba(34,211,238,0.95)"
-          : p.pick < 0.85
-            ? "rgba(124,58,237,0.95)"
-            : "rgba(251,113,133,0.95)";
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r * (g.dpr || 1), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      // remove most color
+      ctx.globalCompositeOperation = "saturation";
+      ctx.fillStyle = "#808080";
+      ctx.globalAlpha = slowAmount * 1.6;
+      ctx.fillRect(0, 0, w, h);
+
+      // slightly darken scene for black/white contrast
+      ctx.globalCompositeOperation = "multiply";
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.globalAlpha = slowAmount * 0.6;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.restore();
     }
+
+    if (slowAmount > 0.01) {
+      ctx.fillStyle = `rgba(120,150,255,${slowAmount * 0.08})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    if (slowAmount > 0.01) {
+      ctx.globalAlpha = 1.1;
+    }
+    // DASH STREAK (clean neon line)
+    for (const d of g.dashTrail) {
+      const alpha = d.life / 0.25;
+
+      ctx.globalAlpha = alpha * (1 + slowAmount * 0.4);
+
+      const gradient = ctx.createLinearGradient(d.x1, d.y1, d.x2, d.y2);
+      gradient.addColorStop(0, "rgba(34,211,238,0.2)");
+      gradient.addColorStop(0.5, "rgba(34, 211, 238, 0.6)");
+      gradient.addColorStop(1, "rgb(34, 211, 238)");
+
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 12 * (g.dpr || 1);
+      ctx.lineCap = "round";
+
+      ctx.beginPath();
+      ctx.moveTo(d.x1, d.y1);
+      ctx.lineTo(d.x2, d.y2);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
 
     // power-ups - enhanced visuals
     for (const p of g.powerUps) {
@@ -1127,10 +1226,31 @@ export default function NeonDodgeGame() {
       ctx.globalAlpha = 1;
     }
 
-    // Reset greyscale filter before drawing player ball so it keeps its color
-    if (hasSlow) {
-      ctx.filter = "none";
+    // PLAYER TRAIL
+    ctx.globalCompositeOperation = "lighter";
+
+    for (let i = 0; i < g.playerTrail.length; i++) {
+      const t = g.playerTrail[i];
+
+      const lifeRatio = t.life / 0.35;
+      const hue = 190 + (1 - lifeRatio) * 60;
+
+      ctx.globalAlpha = lifeRatio * 0.5;
+      ctx.fillStyle = `hsl(${hue},100%,60%)`;
+
+      ctx.beginPath();
+      ctx.arc(
+        t.x,
+        t.y,
+        g.r * (g.dpr || 1) * (0.5 + lifeRatio * 0.5),
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
     }
+
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
 
     // player glow + core - make it clearly different from enemies
     const pr = g.r * (g.dpr || 1);
@@ -1245,11 +1365,6 @@ export default function NeonDodgeGame() {
     vg.addColorStop(1, "rgba(0,0,0,0.35)");
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, w, h);
-
-    // Reset filter after drawing
-    if (hasSlow) {
-      ctx.filter = "none";
-    }
   }
 
   // UI helpers
@@ -1577,7 +1692,6 @@ function OverlayCard({ title, subtitle, actions }) {
       <div
         style={{
           width: "min(520px, calc(100% - 24px))",
-          borderRadius: 18,
           borderRadius: 22,
           padding: window.innerWidth < 600 ? 14 : 18,
           border: "1px solid rgba(255,255,255,0.14)",
