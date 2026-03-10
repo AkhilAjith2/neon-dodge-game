@@ -47,10 +47,6 @@ export default function NeonDodgeGame() {
 
     mq.addEventListener("change", update);
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js");
-    }
-
     return () => mq.removeEventListener("change", update);
   }, []);
 
@@ -465,6 +461,7 @@ export default function NeonDodgeGame() {
     g.dashReady = false;
     g.dashCooldown = g.dashCooldownMax;
     g.shake += 5;
+    playSound("dash");
 
     addParticles(g.px, g.py, 20, 1.2, 0);
   }
@@ -550,14 +547,20 @@ export default function NeonDodgeGame() {
       if (type === "dash") {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
+
+        osc.type = "triangle";
+
         osc.connect(gain);
         gain.connect(audioContext.destination);
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-        gain.gain.setValueAtTime(0.3, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+        osc.frequency.setValueAtTime(900, now);
+        osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
+
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.08);
       } else if (type === "powerup") {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
@@ -572,14 +575,20 @@ export default function NeonDodgeGame() {
       } else if (type === "hit") {
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
+
+        osc.type = "sine";
+
         osc.connect(gain);
         gain.connect(audioContext.destination);
-        osc.frequency.setValueAtTime(300, now);
-        osc.frequency.exponentialRampToValueAtTime(200, now + 0.1);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.18);
+
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+
         osc.start(now);
-        osc.stop(now + 0.1);
+        osc.stop(now + 0.18);
       }
     } catch (e) {
       // Audio context not available
@@ -842,7 +851,8 @@ export default function NeonDodgeGame() {
         if (g.invuln <= 0) {
           g.lives -= 1;
           g.invuln = 1.1;
-          g.shake = 10;
+          g.shake = 18;
+          playSound("hit");
           g.combo = 1;
           g.comboTimer = 0;
 
@@ -920,7 +930,7 @@ export default function NeonDodgeGame() {
     }
 
     // shake decay
-    g.shake = Math.max(0, g.shake - dt * 30);
+    g.shake = Math.max(0, g.shake - dt * 22);
   }
 
   function draw(ctx) {
