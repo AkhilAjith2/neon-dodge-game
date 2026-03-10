@@ -1315,13 +1315,15 @@ export default function NeonDodgeGame() {
   return (
     <div
       style={{
-        height: "100vh",
+        height: "100dvh",
         width: "100vw",
         overflow: "hidden",
         background:
           "radial-gradient(1200px 600px at 30% 20%, rgba(124,58,237,0.18), transparent 50%), radial-gradient(900px 600px at 80% 75%, rgba(34,211,238,0.16), transparent 55%), #060612",
         color: palette.text,
         padding: 0,
+        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingTop: "env(safe-area-inset-top)",
         display: "grid",
         placeItems: "center",
         fontFamily:
@@ -1439,7 +1441,7 @@ export default function NeonDodgeGame() {
               <div
                 style={{
                   position: "absolute",
-                  bottom: 40,
+                  bottom: 80,
                   left: 40,
                   width: 120,
                   height: 120,
@@ -1468,7 +1470,7 @@ export default function NeonDodgeGame() {
               <div
                 style={{
                   position: "absolute",
-                  bottom: 40,
+                  bottom: 80,
                   right: 40,
                 }}
               >
