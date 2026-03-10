@@ -148,7 +148,8 @@ export default function NeonDodgeGame() {
 
     const down = (e) => {
       if (e.repeat) return;
-      if (e.key === "p" || e.key === "P" || e.key === "Escape") {
+      if (e.code === "Escape" || e.key === "p" || e.key === "P") {
+        e.preventDefault();
         togglePause();
         return;
       }
@@ -343,11 +344,13 @@ export default function NeonDodgeGame() {
 
   function togglePause() {
     const g = gameRef.current;
-    if (!ui.started) return;
+
     if (!g.running) return;
 
     g.paused = !g.paused;
+
     setUi((u) => ({ ...u, paused: g.paused }));
+
     if (!g.paused) {
       g.last = performance.now();
       rafRef.current = requestAnimationFrame(loop);
@@ -1264,7 +1267,7 @@ export default function NeonDodgeGame() {
         >
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: -0.3 }}>
-              Neon Dodge
+              Nova Pulse
             </div>
           </div>
 
@@ -1310,7 +1313,7 @@ export default function NeonDodgeGame() {
           style={{
             position: "relative",
             width: "100%",
-            height: "calc(100% - 70px)",
+            height: "100%",
             borderRadius: 0,
             overflow: "hidden",
             border: "none",
@@ -1323,19 +1326,29 @@ export default function NeonDodgeGame() {
           {/* Start overlay */}
           {!ui.started && (
             <OverlayCard
-              title="Neon Dodge"
-              subtitle="Dodge the incoming orbs. Build combo by staying in motion."
+              title="Nova Pulse"
+              subtitle={
+                <div style={{ lineHeight: 1.6 }}>
+                  <div>
+                    <strong>Move:</strong> WASD or Arrow Keys
+                  </div>
+                  <div>
+                    <strong>Dash:</strong> Press SPACE
+                  </div>
+                  <div style={{ marginTop: 6 }}>
+                    <strong>Power-Ups</strong>
+                  </div>
+                  <div>🛡 Shield - Temporary invulnerability</div>
+                  <div>⚡ Speed - Move faster</div>
+                  <div>❄ Slow - Enemies move slower</div>
+                  <div style={{ marginTop: 6, opacity: 0.85 }}>
+                    Dodge incoming orbs and keep moving to build your combo.
+                  </div>
+                </div>
+              }
               actions={
                 <>
                   <Button onClick={start}>Start</Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() =>
-                      alert("Tip: Keep moving to raise combo and score faster!")
-                    }
-                  >
-                    Tips
-                  </Button>
                 </>
               }
             />
@@ -1365,16 +1378,6 @@ export default function NeonDodgeGame() {
               actions={
                 <>
                   <Button onClick={start}>Play again</Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      localStorage.removeItem("neon_dodge_best");
-                      gameRef.current.best = 0;
-                      setUi((u) => ({ ...u, best: 0 }));
-                    }}
-                  >
-                    Reset best
-                  </Button>
                 </>
               }
             />
