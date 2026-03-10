@@ -505,30 +505,31 @@ export default function NeonDodgeGame() {
   }
 
   function activatePowerUp(g, type) {
+    const durations = {
+      shield: 4,
+      speed: 3,
+      slow: 4,
+    };
+
+    const dur = durations[type];
+
     let existing = g.activePowerUps.find((p) => p.type === type);
 
+    if (existing) {
+      // reset timer completely
+      existing.duration = dur;
+      existing.maxDuration = dur;
+    } else {
+      g.activePowerUps.push({
+        type,
+        duration: dur,
+        maxDuration: dur,
+      });
+    }
+
+    // ensure gameplay effects reset too
     if (type === "shield") {
-      if (existing) {
-        existing.duration = 4;
-        existing.maxDuration = 4;
-      } else {
-        g.activePowerUps.push({ type: "shield", duration: 4, maxDuration: 4 });
-        g.invuln = 4;
-      }
-    } else if (type === "speed") {
-      if (existing) {
-        existing.duration = 3;
-        existing.maxDuration = 3;
-      } else {
-        g.activePowerUps.push({ type: "speed", duration: 3, maxDuration: 3 });
-      }
-    } else if (type === "slow") {
-      if (existing) {
-        existing.duration = 4;
-        existing.maxDuration = 4;
-      } else {
-        g.activePowerUps.push({ type: "slow", duration: 4, maxDuration: 4 });
-      }
+      g.invuln = dur;
     }
 
     g.score += 100;

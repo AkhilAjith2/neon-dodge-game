@@ -1,0 +1,21 @@
+{
+  "name": "Nova Pulse",
+  "short_name": "NovaPulse",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#060612",
+  "theme_color": "#060612",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/assets/nova-pulse.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/nova-pulse.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
