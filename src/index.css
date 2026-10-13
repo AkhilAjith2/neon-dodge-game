@@ -9,7 +9,46 @@ body,
 }
 body {
   margin: 0;
+  overflow: hidden;
+  background: #05050c;
 }
+
+* { box-sizing: border-box; }
+
+.game-hud {
+  position: relative; height: 68px; padding: 0 18px; display: flex;
+  align-items: center; justify-content: space-between; z-index: 20;
+  background: linear-gradient(180deg, rgba(5,6,18,.96), rgba(7,8,22,.82));
+  border-bottom: 1px solid rgba(103,232,249,.18);
+  box-shadow: 0 12px 40px rgba(0,0,0,.34);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.brand-lockup,.run-data { display:flex; align-items:center; gap:14px; }
+.brand-mark { width:30px; height:30px; position:relative; display:block; transform:rotate(-8deg); }
+.brand-mark i { position:absolute; inset:5px; border:2px solid #67e8f9; transform:rotate(45deg); box-shadow:0 0 10px #22d3ee; }
+.brand-mark i:nth-child(2) { inset:10px 1px; border-color:#a78bfa; }
+.brand-mark i:nth-child(3) { inset:1px 10px; border-color:#f472b6; }
+.brand-name { font-size:18px; font-weight:300; letter-spacing:.18em; white-space:nowrap; }
+.brand-name b { color:#67e8f9; text-shadow:0 0 14px rgba(34,211,238,.7); }
+.brand-sub,.stat span,.phase span,.combo span { display:block; font-size:8px; letter-spacing:.18em; color:rgba(255,255,255,.42); }
+.stat,.phase,.combo { padding-left:14px; border-left:1px solid rgba(255,255,255,.1); text-align:left; }
+.stat b { font-size:17px; letter-spacing:.08em; font-variant-numeric:tabular-nums; }
+.stat.dim b { color:rgba(255,255,255,.55); font-size:13px; }
+.phase b { display:block; color:#a78bfa; font-size:10px; letter-spacing:.12em; margin-top:3px; }
+.combo b { font-size:22px; color:#67e8f9; line-height:1; }
+.combo.hot b { color:#fbbf24; text-shadow:0 0 16px #f59e0b; animation:hud-pulse .55s ease-in-out infinite alternate; }
+.hud-progress { position:absolute; height:2px; left:0; right:0; bottom:-1px; transform-origin:left; background:linear-gradient(90deg,#7c3aed,#22d3ee,#fff); box-shadow:0 0 12px #22d3ee; transition:transform .08s linear; }
+@keyframes hud-pulse { to { transform:scale(1.12); } }
+@media (max-width: 600px) {
+  .game-hud { height:56px; padding:0 9px; }
+  .brand-lockup,.run-data { gap:7px; }
+  .brand-mark { width:22px; height:22px; }
+  .brand-name { font-size:13px; }
+  .stat,.combo { padding-left:7px; }
+  .stat b { font-size:13px; }
+  .stat span,.combo span { font-size:7px; }
+}
+@media (prefers-reduced-motion: reduce) { .combo.hot b { animation:none; } }
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

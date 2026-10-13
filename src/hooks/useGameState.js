@@ -35,6 +35,8 @@ export function useGameState() {
     // enemies and particles
     enemies: [],
     particles: [],
+    rings: [],
+    nearMisses: [],
     spawnTimer: 0,
     difficulty: 1,
 
@@ -51,8 +53,17 @@ export function useGameState() {
 
     // effects
     shake: 0,
+    hitFlash: 0,
+    chroma: 0,
+    dashFlash: 0,
+    nearMissFlash: 0,
+    patternFlash: 2.4,
+    lastPatternIndex: 0,
     lastScoreMilestone: 0,
     timeScale: 1,
+    mode: "freeplay",
+    patternIndex: 0,
+    patternElapsed: 0,
 
     prevTrailX: 0,
     prevTrailY: 0,
@@ -66,6 +77,13 @@ export function useGameState() {
     best: 0,
     lives: GAME_CONFIG.INITIAL_LIVES,
     combo: 1,
+    dashReady: true,
+    dashProgress: 1,
+    patternIndex: 0,
+    patternName: "WARMUP GRID",
+    activePowerUps: [],
+    isMuted: false,
+    gameMode: "freeplay",
   });
 
   return {

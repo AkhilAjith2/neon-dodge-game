@@ -7,15 +7,23 @@ export function Button({ children, onClick, variant = "primary" }) {
           border: "1px solid rgba(255,255,255,0.16)",
           color: "rgba(255,255,255,0.95)",
         }
-      : {
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.12)",
-          color: "rgba(255,255,255,0.92)",
-        };
+      : variant === "secondary"
+        ? {
+            background:
+              "linear-gradient(135deg, rgba(34,211,238,0.85), rgba(52,211,153,0.8))",
+            border: "1px solid rgba(255,255,255,0.16)",
+            color: "rgba(255,255,255,0.95)",
+          }
+        : {
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            color: "rgba(255,255,255,0.92)",
+          };
 
   return (
     <button
       onClick={onClick}
+      onPointerDown={(e) => e.stopPropagation()}
       style={{
         ...styles,
         cursor: "pointer",

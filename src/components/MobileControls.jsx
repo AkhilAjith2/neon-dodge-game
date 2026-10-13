@@ -1,5 +1,5 @@
 export function MobileControls({
-  joystickRef,
+  joystickOffset,
   onJoyStart,
   onJoyMove,
   onJoyEnd,
@@ -32,8 +32,8 @@ export function MobileControls({
             height: 50,
             borderRadius: "50%",
             background: "rgba(255,255,255,0.2)",
-            transform: `translate(${joystickRef.current.x + 35}px, ${
-              joystickRef.current.y + 35
+            transform: `translate(${joystickOffset.x + 35}px, ${
+              joystickOffset.y + 35
             }px)`,
           }}
         />

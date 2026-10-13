@@ -26,17 +26,19 @@ export function drawGame(ctx, g) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
 
-  // Subtle grid
+  // Living parallax grid
   ctx.globalAlpha = 0.12;
   ctx.strokeStyle = "rgba(255,255,255,0.35)";
   ctx.lineWidth = 1;
   const step = 56 * (g.dpr || 1);
   ctx.beginPath();
-  for (let x = 0; x < w; x += step) {
+  const gridX = (g.t * 10 * (g.dpr || 1)) % step;
+  const gridY = (g.t * 6 * (g.dpr || 1)) % step;
+  for (let x = gridX - step; x < w; x += step) {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, h);
   }
-  for (let y = 0; y < h; y += step) {
+  for (let y = gridY - step; y < h; y += step) {
     ctx.moveTo(0, y);
     ctx.lineTo(w, y);
   }
@@ -45,6 +47,7 @@ export function drawGame(ctx, g) {
 
   // Ambient blobs
   drawAmbientBlobs(ctx, w, h, g);
+  drawSpeedField(ctx, g, w, h);
 
   // Slow effect
   if (slowAmount > 0.01) {
@@ -53,18 +56,21 @@ export function drawGame(ctx, g) {
 
   // Dash trails
   drawDashTrails(ctx, g);
+  drawRings(ctx, g);
 
   // Power-ups
   drawPowerUps(ctx, g);
 
   // Enemies
   drawEnemies(ctx, g, slowAmount);
+  drawParticles(ctx, g);
 
   // Player trail
   drawPlayerTrail(ctx, g);
 
   // Player
   drawPlayer(ctx, g);
+  drawCallouts(ctx, g, w, h);
 
   // Vignette
   const vg = ctx.createRadialGradient(
@@ -79,6 +85,8 @@ export function drawGame(ctx, g) {
   vg.addColorStop(1, "rgba(0,0,0,0.35)");
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, w, h);
+
+  drawHitFeedback(ctx, g, w, h);
 }
 
 function drawAmbientBlobs(ctx, w, h, g) {
@@ -94,8 +102,45 @@ function drawAmbientBlobs(ctx, w, h, g) {
     ctx.globalAlpha = 1;
   };
 
-  blob(w * 0.2, h * 0.25, 220 * (g.dpr || 1), 0.35, "rgba(124,58,237,0.45)");
-  blob(w * 0.78, h * 0.72, 260 * (g.dpr || 1), 0.28, "rgba(34,211,238,0.42)");
+  blob(w * (0.2 + Math.sin(g.t * 0.13) * 0.05), h * 0.25, 220 * (g.dpr || 1), 0.35, "rgba(124,58,237,0.45)");
+  blob(w * 0.78, h * (0.72 + Math.cos(g.t * 0.1) * 0.06), 260 * (g.dpr || 1), 0.28, "rgba(34,211,238,0.42)");
+}
+
+function drawSpeedField(ctx, g, w, h) {
+  const speed = Math.hypot(g.vx, g.vy);
+  if (speed < 80) return;
+  const strength = Math.min(1, speed / 900) * 0.22;
+  ctx.save();
+  ctx.globalAlpha = strength;
+  ctx.strokeStyle = "#8be9ff";
+  ctx.lineWidth = Math.max(1, g.dpr || 1);
+  const angle = Math.atan2(g.vy, g.vx);
+  for (let i = 0; i < 18; i++) {
+    const seed = i * 73.37;
+    const x = (seed * 17 + g.t * -g.vx * 0.16) % (w + 100) - 50;
+    const y = (seed * 31 + g.t * -g.vy * 0.16) % (h + 100) - 50;
+    const len = 8 + (i % 5) * 5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - Math.cos(angle) * len, y - Math.sin(angle) * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawRings(ctx, g) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const ring of g.rings || []) {
+    const p = 1 - ring.life / ring.max;
+    ctx.globalAlpha = (1 - p) * 0.75;
+    ctx.strokeStyle = ring.color;
+    ctx.lineWidth = (2.5 - p * 1.5) * (g.dpr || 1);
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, (ring.size + p * 100) * (g.dpr || 1), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawSlowEffect(ctx, w, h, slowAmount) {
@@ -235,17 +280,65 @@ function drawEnemies(ctx, g, slowAmount = 0) {
     ctx.arc(e.x, e.y, r * 2.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.beginPath();
-    ctx.arc(e.x, e.y, r * 0.55, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(g.t * e.w + e.orbitAngle);
     ctx.fillStyle = base;
-    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.lineWidth = 1.2 * (g.dpr || 1);
     ctx.beginPath();
-    ctx.arc(e.x, e.y, r * 0.9, 0, Math.PI * 2);
+    const sides = e.attackType === "aggressive" ? 3 : e.attackType === "wavy" ? 6 : e.attackType === "orbital" ? 4 : 5;
+    for (let j = 0; j < sides; j++) {
+      const a = (j / sides) * Math.PI * 2 - Math.PI / 2;
+      const rr = r * (j % 2 ? 0.72 : 1);
+      const xx = Math.cos(a) * rr;
+      const yy = Math.sin(a) * rr;
+      if (!j) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+    }
+    ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.24, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     ctx.globalAlpha = 1;
   }
+}
+
+function drawParticles(ctx, g) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const p of g.particles) {
+    const a = Math.max(0, p.life / p.max);
+    ctx.globalAlpha = a * 0.9;
+    ctx.fillStyle = p.pick === 1 ? "#fb7185" : p.pick === 2 ? "#fbbf24" : "#67e8f9";
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * a * (g.dpr || 1), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCallouts(ctx, g, w, h) {
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.font = `800 ${14 * (g.dpr || 1)}px ui-monospace, monospace`;
+  ctx.letterSpacing = "3px";
+  if (g.nearMissFlash > 0) {
+    ctx.globalAlpha = Math.min(1, g.nearMissFlash * 2);
+    ctx.fillStyle = "#fbbf24";
+    ctx.fillText("CLOSE CALL  +35", g.px, g.py - 38 * (g.dpr || 1));
+  }
+  if (g.patternFlash > 0 && g.running) {
+    const a = Math.min(1, g.patternFlash) * Math.min(1, (2.2 - g.patternFlash) * 3);
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.font = `900 ${18 * (g.dpr || 1)}px ui-monospace, monospace`;
+    ctx.fillText("// " + (g.patternIndex + 1).toString().padStart(2, "0") + "  " + (g.patternIndex === 0 ? "WARMUP GRID" : ["", "WAVE BREAK", "ORBIT LOCK", "RICOCHET PULSE", "NEON STORM"][g.patternIndex]), w / 2, h * 0.18);
+  }
+  ctx.restore();
 }
 
 function drawPlayerTrail(ctx, g) {
@@ -373,4 +466,25 @@ function drawPlayer(ctx, g) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+}
+
+function drawHitFeedback(ctx, g, w, h) {
+  if (!g.hitFlash) return;
+
+  const dpr = g.dpr || 1;
+  const progress = Math.min(1, g.hitFlash / 0.85);
+  const alpha = Math.sin(progress * Math.PI) * 0.95;
+
+  ctx.save();
+
+  ctx.globalAlpha = alpha * 0.22;
+  ctx.fillStyle = "#fb7185";
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = "rgba(251,113,133,0.95)";
+  ctx.lineWidth = 8 * dpr;
+  ctx.strokeRect(8 * dpr, 8 * dpr, w - 16 * dpr, h - 16 * dpr);
+
+  ctx.restore();
 }

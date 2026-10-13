@@ -2,20 +2,46 @@ import {
   GAME_CONFIG,
   ENEMY_ATTACK_TYPES,
   POWERUP_DURATIONS,
+  FREEPLAY_PATTERN_CONFIGS,
 } from "../constants/gameConstants.js";
 import {
   clamp,
   lerp,
   rand,
   getRandomAngle,
-  normalizeVector,
-  getDistance,
 } from "./gameUtils.js";
 import { playSound } from "./audio.js";
 
 // ============ SPAWN LOGIC ============
 
-export function spawnEnemy(g, isMobile) {
+function pickEnemyAttackType(weights) {
+  const entries = Object.entries(weights || {}).filter(([, weight]) => weight > 0);
+  if (!entries.length) return ENEMY_ATTACK_TYPES.AGGRESSIVE;
+
+  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
+  let roll = Math.random() * total;
+
+  for (const [type, weight] of entries) {
+    roll -= weight;
+    if (roll <= 0) return type;
+  }
+
+  return entries[entries.length - 1][0];
+}
+
+function getFreeplayPattern(g) {
+  if (!FREEPLAY_PATTERN_CONFIGS.length) return null;
+  return FREEPLAY_PATTERN_CONFIGS[
+    g.patternIndex % FREEPLAY_PATTERN_CONFIGS.length
+  ];
+}
+
+function getPatternProgress(g, patternConfig) {
+  if (!patternConfig) return 0;
+  return clamp(g.patternElapsed / patternConfig.duration, 0, 1);
+}
+
+export function spawnEnemy(g, isMobile, overrideAttackType = null) {
   const spawnOffset = isMobile ? 120 : 40;
   const side = Math.floor(rand(0, 4));
   let x = 0,
@@ -45,19 +71,15 @@ export function spawnEnemy(g, isMobile) {
       GAME_CONFIG.ENEMY_ATTACK_ANGLE_VARIANCE,
     );
 
-  const typeRand = Math.random();
-  let attackType, huePick;
-  if (typeRand < 0.25) {
-    attackType = ENEMY_ATTACK_TYPES.AGGRESSIVE;
+  const attackType = overrideAttackType || pickEnemyAttackType();
+  let huePick;
+  if (attackType === ENEMY_ATTACK_TYPES.AGGRESSIVE) {
     huePick = 0.25;
-  } else if (typeRand < 0.5) {
-    attackType = ENEMY_ATTACK_TYPES.WAVY;
+  } else if (attackType === ENEMY_ATTACK_TYPES.WAVY) {
     huePick = 0.75;
-  } else if (typeRand < 0.75) {
-    attackType = ENEMY_ATTACK_TYPES.ORBITAL;
+  } else if (attackType === ENEMY_ATTACK_TYPES.ORBITAL) {
     huePick = 0.4;
   } else {
-    attackType = ENEMY_ATTACK_TYPES.BOUNCY;
     huePick = 0.6;
   }
 
@@ -73,6 +95,8 @@ export function spawnEnemy(g, isMobile) {
     spawnTime: g.t,
     orbitAngle: Math.random() * Math.PI * 2,
     bounceTimer: 0,
+    nearest: Infinity,
+    grazed: false,
   });
 }
 
@@ -135,7 +159,7 @@ export function addParticles(x, y, count, power = 1, colorPick = 0, g) {
 
 // ============ PLAYER ABILITIES ============
 
-export function performDash(g, audioContext, mobileScale) {
+export function performDash(g, audioContext) {
   if (!g.dashReady || !g.running) return;
 
   const moveDir = g.lastMoveDir;
@@ -163,6 +187,9 @@ export function performDash(g, audioContext, mobileScale) {
   g.dashReady = false;
   g.dashCooldown = g.dashCooldownMax;
   g.shake += 5;
+  g.dashFlash = 1;
+  g.chroma = 0.35;
+  g.rings.push({ x: g.px, y: g.py, life: 0.55, max: 0.55, color: "#67e8f9", size: 18 });
   playSound(audioContext, "dash");
 
   addParticles(g.px, g.py, 20, 1.2, 0, g);
@@ -198,6 +225,18 @@ export function activatePowerUp(g, type, audioContext) {
 export function updateGame(dt, g, setUi, ui, audioContext) {
   const realDt = dt;
   const simDt = dt;
+  const patternConfig = getFreeplayPattern(g);
+
+  if (patternConfig) {
+    g.patternElapsed += realDt;
+    if (g.patternElapsed >= patternConfig.duration) {
+      g.patternElapsed -= patternConfig.duration;
+      g.patternIndex = (g.patternIndex + 1) % FREEPLAY_PATTERN_CONFIGS.length;
+      g.patternFlash = 2.2;
+      g.chroma = 0.65;
+      g.rings.push({ x: g.px, y: g.py, life: 1, max: 1, color: "#22d3ee", size: 26 });
+    }
+  }
 
   // Time scale from slow power-up
   const slowPower = g.activePowerUps.find((p) => p.type === "slow");
@@ -238,22 +277,38 @@ export function updateGame(dt, g, setUi, ui, audioContext) {
   g.powerUpSpawnTimer -= realDt;
   if (g.powerUpSpawnTimer <= 0) {
     g.powerUpSpawnTimer =
+      patternConfig?.powerUpInterval ??
       GAME_CONFIG.POWERUP_SPAWN_INTERVAL_BASE -
-      g.difficulty * GAME_CONFIG.POWERUP_SPAWN_INTERVAL_REDUCTION;
+        g.difficulty * GAME_CONFIG.POWERUP_SPAWN_INTERVAL_REDUCTION;
     spawnPowerUp(g, 1);
   }
 
   // Enemy spawn
   g.spawnTimer -= realDt;
-  const spawnEvery = clamp(
-    GAME_CONFIG.SPAWN_INTERVAL_MAX -
-      g.difficulty * GAME_CONFIG.SPAWN_DIFFICULTY_REDUCTION,
-    GAME_CONFIG.SPAWN_INTERVAL_MIN,
-    GAME_CONFIG.SPAWN_INTERVAL_MAX,
-  );
+  const patternProgress = getPatternProgress(g, patternConfig);
+  const spawnEvery = patternConfig
+    ? clamp(
+        patternConfig.spawnIntervalMax -
+          (patternConfig.spawnIntervalMax - patternConfig.spawnIntervalMin) *
+            patternProgress -
+          g.difficulty * 0.03,
+        GAME_CONFIG.SPAWN_INTERVAL_MIN,
+        patternConfig.spawnIntervalMax,
+      )
+    : clamp(
+        GAME_CONFIG.SPAWN_INTERVAL_MAX -
+          g.difficulty * GAME_CONFIG.SPAWN_DIFFICULTY_REDUCTION,
+        GAME_CONFIG.SPAWN_INTERVAL_MIN,
+        GAME_CONFIG.SPAWN_INTERVAL_MAX,
+      );
+
   if (g.spawnTimer <= 0) {
     g.spawnTimer = spawnEvery;
-    spawnEnemy(g, false);
+    spawnEnemy(
+      g,
+      false,
+      patternConfig && pickEnemyAttackType(patternConfig.enemyWeights),
+    );
   }
 
   // Player movement
@@ -261,8 +316,9 @@ export function updateGame(dt, g, setUi, ui, audioContext) {
   const hasSpeed = g.activePowerUps.find((p) => p.type === "speed");
   if (hasSpeed) moveSpeed *= GAME_CONFIG.PLAYER_SPEED_MULTIPLIER;
 
-  g.vx = g.ix * moveSpeed;
-  g.vy = g.iy * moveSpeed;
+  const response = 1 - Math.exp(-18 * simDt);
+  g.vx = lerp(g.vx, g.ix * moveSpeed, response);
+  g.vy = lerp(g.vy, g.iy * moveSpeed, response);
 
   if (g.ix !== 0 || g.iy !== 0) {
     g.lastMoveDir = { x: g.ix, y: g.iy };
@@ -313,6 +369,7 @@ export function updateGame(dt, g, setUi, ui, audioContext) {
   // Update particles
   updatePlayerTrail(g, simDt);
   updateParticles(g, dt);
+  updateRings(g, dt);
 
   // Scoring
   const gain = GAME_CONFIG.SCORE_GAIN_BASE * dt * g.combo;
@@ -332,6 +389,13 @@ export function updateGame(dt, g, setUi, ui, audioContext) {
 
   // Shake decay
   g.shake = Math.max(0, g.shake - dt * GAME_CONFIG.SHAKE_DECAY_RATE);
+  g.hitFlash = Math.max(0, g.hitFlash - dt);
+  g.chroma = Math.max(0, g.chroma - dt * 2.5);
+  g.dashFlash = Math.max(0, g.dashFlash - dt * 4);
+  g.nearMissFlash = Math.max(0, g.nearMissFlash - dt * 2.8);
+  g.patternFlash = Math.max(0, g.patternFlash - dt);
+
+  return null;
 }
 
 function updateEnemies(g, simDt, audioContext) {
@@ -379,6 +443,16 @@ function updateEnemies(g, simDt, audioContext) {
     e.vx += ax * 1000 * enemyDt;
     e.vy += ay * 1000 * enemyDt;
 
+    const playerDistance = Math.hypot(e.x - g.px, e.y - g.py) - e.r - g.r;
+    if (playerDistance < e.nearest) e.nearest = playerDistance;
+    if (!e.grazed && e.nearest < 38 && playerDistance > e.nearest + 12) {
+      e.grazed = true;
+      g.score += 35 * g.combo;
+      g.combo = clamp(g.combo + 1, 1, GAME_CONFIG.COMBO_MAX);
+      g.nearMissFlash = 1;
+      g.rings.push({ x: g.px, y: g.py, life: 0.5, max: 0.5, color: "#fbbf24", size: 12 });
+    }
+
     // Remove if far away
     if (e.x < -120 || e.x > g.w + 120 || e.y < -120 || e.y > g.h + 120) {
       g.enemies.splice(i, 1);
@@ -400,6 +474,8 @@ function checkEnemyCollision(g, e, index, audioContext) {
       g.lives -= 1;
       g.invuln = GAME_CONFIG.HIT_INVULN_DURATION;
       g.shake = 18;
+      g.hitFlash = 0.85;
+      g.chroma = 1;
       playSound(audioContext, "hit");
       g.combo = 1;
       g.comboTimer = 0;
@@ -461,5 +537,13 @@ function updateParticles(g, dt) {
     p.vy *= Math.pow(0.03, dt);
     p.life -= dt;
     if (p.life <= 0) g.particles.splice(i, 1);
+  }
+  if (g.particles.length > 240) g.particles.splice(0, g.particles.length - 240);
+}
+
+function updateRings(g, dt) {
+  for (let i = g.rings.length - 1; i >= 0; i--) {
+    g.rings[i].life -= dt;
+    if (g.rings[i].life <= 0) g.rings.splice(i, 1);
   }
 }

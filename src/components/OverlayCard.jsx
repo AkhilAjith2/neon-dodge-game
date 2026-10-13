@@ -1,6 +1,8 @@
 export function OverlayCard({ title, subtitle, actions }) {
   return (
     <div
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         inset: 0,
@@ -9,6 +11,8 @@ export function OverlayCard({ title, subtitle, actions }) {
         background: "rgba(0,0,0,0.35)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
+        zIndex: 100,
+        pointerEvents: "auto",
       }}
     >
       <div

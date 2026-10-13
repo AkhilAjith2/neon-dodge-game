@@ -1,10 +1,10 @@
-import { useRef, useEffect } from "react";
+import { useEffect } from "react";
 
 export function GameCanvas({
   wrapRef,
   canvasRef,
   onRender,
-  isTouchDevice,
+  isModalOpen = false,
   children,
 }) {
   // Resize canvas to container
@@ -55,7 +55,13 @@ export function GameCanvas({
         boxShadow: "none",
       }}
     >
-      <canvas ref={canvasRef} style={{ display: "block" }} />
+      <canvas
+        ref={canvasRef}
+        style={{
+          display: "block",
+          pointerEvents: isModalOpen ? "none" : "auto",
+        }}
+      />
       {children}
     </div>
   );

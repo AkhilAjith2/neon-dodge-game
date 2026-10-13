@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { getCanvasPoint } from "../game/gameUtils.js";
 
 export function useInput(
@@ -14,6 +14,7 @@ export function useInput(
     y: 0,
     max: 60,
   });
+  const [joystickOffset, setJoystickOffset] = useState({ x: 0, y: 0 });
 
   // Keyboard input
   useEffect(() => {
@@ -81,7 +82,13 @@ export function useInput(
     let lastX = 0;
     let lastY = 0;
 
+    const isModalOpen =
+      !ui.started ||
+      (ui.started && ui.paused && !ui.gameOver) ||
+      ui.gameOver;
+
     const onDown = (e) => {
+      if (isModalOpen) return;
       dragging = true;
       const p = getCanvasPoint(e, el.getBoundingClientRect());
       lastX = p.x;
@@ -122,7 +129,7 @@ export function useInput(
       el.removeEventListener("touchmove", onMove);
       window.removeEventListener("touchend", onUp);
     };
-  }, [wrapRef, gameRef, onStart]);
+  }, [wrapRef, gameRef, onStart, ui.started, ui.paused, ui.gameOver]);
 
   // Joystick input (mobile)
   const handleJoyStart = (e) => {
@@ -150,6 +157,7 @@ export function useInput(
 
     j.x = nx;
     j.y = ny;
+    setJoystickOffset({ x: nx, y: ny });
 
     const g = gameRef.current;
     g.ix = nx / max;
@@ -161,6 +169,7 @@ export function useInput(
     j.active = false;
     j.x = 0;
     j.y = 0;
+    setJoystickOffset({ x: 0, y: 0 });
 
     const g = gameRef.current;
     g.ix = 0;
@@ -169,6 +178,7 @@ export function useInput(
 
   return {
     joystickRef,
+    joystickOffset,
     handleJoyStart,
     handleJoyMove,
     handleJoyEnd,

@@ -1,7 +1,20 @@
 import { SOUND_TYPES } from "../constants/gameConstants.js";
 
 export function initAudioContext() {
-  return new (window.AudioContext || window.webkitAudioContext)();
+  const context = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Create master gain node for muting
+  const masterGain = context.createGain();
+  masterGain.connect(context.destination);
+  masterGain.gain.value = 1;
+
+  context.masterGain = masterGain;
+  return context;
+}
+
+export function setAudioMuted(audioContext, isMuted) {
+  if (!audioContext || !audioContext.masterGain) return;
+  audioContext.masterGain.gain.value = isMuted ? 0 : 1;
 }
 
 export function playSound(audioContext, type) {
@@ -17,7 +30,7 @@ export function playSound(audioContext, type) {
       osc.type = "triangle";
 
       osc.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(audioContext.masterGain);
 
       osc.frequency.setValueAtTime(900, now);
       osc.frequency.exponentialRampToValueAtTime(400, now + 0.08);
@@ -34,7 +47,7 @@ export function playSound(audioContext, type) {
       osc.type = "sawtooth";
 
       osc.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(audioContext.masterGain);
 
       osc.frequency.setValueAtTime(300, now);
       osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
@@ -51,7 +64,7 @@ export function playSound(audioContext, type) {
       osc.type = "triangle";
 
       osc.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(audioContext.masterGain);
 
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.exponentialRampToValueAtTime(120, now + 0.35);
@@ -68,7 +81,7 @@ export function playSound(audioContext, type) {
       osc.type = "sine";
 
       osc.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(audioContext.masterGain);
 
       osc.frequency.setValueAtTime(400, now);
       osc.frequency.exponentialRampToValueAtTime(700, now + 0.2);
@@ -85,7 +98,7 @@ export function playSound(audioContext, type) {
       osc.type = "sine";
 
       osc.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(audioContext.masterGain);
 
       osc.frequency.setValueAtTime(120, now);
       osc.frequency.exponentialRampToValueAtTime(70, now + 0.18);
@@ -96,7 +109,7 @@ export function playSound(audioContext, type) {
       osc.start(now);
       osc.stop(now + 0.18);
     }
-  } catch (e) {
+  } catch {
     // Audio context not available
   }
 }

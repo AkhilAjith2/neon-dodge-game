@@ -17,6 +17,20 @@ export const POWERUP_ICONS = {
   `),
 };
 
+// Audio icon paths
+export const AUDIO_ICONS = {
+  speaker: new Path2D(`
+    M3 9v6h4l5 5V4L7 9H3z
+    M15.54 3.54A6.5 6.5 0 0120 10a6.5 6.5 0 01-4.46 6.46
+    M17 16.95A10 10 0 0023 10a10 10 0 00-6-9.05
+  `),
+
+  muted: new Path2D(`
+    M3 9v6h4l5 5V4L7 9H3z
+    M23 9l-6 6m0-6l6 6
+  `),
+};
+
 // Color palette
 export const PALETTE = {
   bg0: "#070814",
@@ -48,6 +62,7 @@ export const POWERUP_COLORS = {
 
 // Game configuration
 export const GAME_CONFIG = {
+  PATTERN_NAMES: ["WARMUP GRID", "WAVE BREAK", "ORBIT LOCK", "RICOCHET PULSE", "NEON STORM"],
   DEFAULT_CANVAS_WIDTH: 900,
   DEFAULT_CANVAS_HEIGHT: 520,
   PLAYER_RADIUS: 8,
@@ -80,6 +95,89 @@ export const GAME_CONFIG = {
   COMBO_MAX: 9,
   SHAKE_DECAY_RATE: 22,
 };
+
+export const FREEPLAY_PATTERN_CONFIGS = [
+  {
+    id: 1,
+    name: "Warmup Grid",
+    duration: 16,
+    startDifficulty: 0.35,
+    endDifficulty: 0.9,
+    spawnIntervalMin: 0.9,
+    spawnIntervalMax: 1.3,
+    powerUpInterval: 9,
+    enemyWeights: {
+      aggressive: 0.7,
+      wavy: 0.3,
+      orbital: 0,
+      bouncy: 0,
+    },
+  },
+  {
+    id: 2,
+    name: "Wave Break",
+    duration: 18,
+    startDifficulty: 0.8,
+    endDifficulty: 1.4,
+    spawnIntervalMin: 0.75,
+    spawnIntervalMax: 1.15,
+    powerUpInterval: 8,
+    enemyWeights: {
+      aggressive: 0.35,
+      wavy: 0.45,
+      orbital: 0.2,
+      bouncy: 0,
+    },
+  },
+  {
+    id: 3,
+    name: "Orbit Lock",
+    duration: 20,
+    startDifficulty: 1.25,
+    endDifficulty: 2,
+    spawnIntervalMin: 0.65,
+    spawnIntervalMax: 1,
+    powerUpInterval: 7.5,
+    enemyWeights: {
+      aggressive: 0.2,
+      wavy: 0.25,
+      orbital: 0.4,
+      bouncy: 0.15,
+    },
+  },
+  {
+    id: 4,
+    name: "Ricochet Pulse",
+    duration: 22,
+    startDifficulty: 1.8,
+    endDifficulty: 2.8,
+    spawnIntervalMin: 0.55,
+    spawnIntervalMax: 0.9,
+    powerUpInterval: 7,
+    enemyWeights: {
+      aggressive: 0.2,
+      wavy: 0.2,
+      orbital: 0.2,
+      bouncy: 0.4,
+    },
+  },
+  {
+    id: 5,
+    name: "Neon Storm",
+    duration: 24,
+    startDifficulty: 2.5,
+    endDifficulty: 3.8,
+    spawnIntervalMin: 0.45,
+    spawnIntervalMax: 0.75,
+    powerUpInterval: 6.5,
+    enemyWeights: {
+      aggressive: 0.25,
+      wavy: 0.25,
+      orbital: 0.25,
+      bouncy: 0.25,
+    },
+  },
+];
 
 // Power-up durations
 export const POWERUP_DURATIONS = {

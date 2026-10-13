@@ -1,83 +1,23 @@
-import { Pill } from "./Pill.jsx";
+import { AudioToggleButton } from "./AudioToggleButton.jsx";
 
-export function GameHUD({ ui, isMobile }) {
+export function GameHUD({ ui, isMobile, onToggleMute }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        padding: isMobile ? "6px 10px" : "12px 20px",
-        background: "rgba(0,0,0,0.4)",
-        zIndex: 10,
-      }}
-    >
-      <div style={{ display: "grid", gap: 6 }}>
-        <div
-          style={{
-            fontSize: window.innerWidth < 600 ? 16 : 22,
-            fontWeight: 800,
-            letterSpacing: -0.3,
-          }}
-        >
-          Nova Pulse
+    <header className="game-hud">
+      <div className="brand-lockup">
+        <span className="brand-mark"><i /><i /><i /></span>
+        <div>
+          <div className="brand-name">NOVA <b>PULSE</b></div>
+          {!isMobile && <div className="brand-sub">KINETIC SURVIVAL SYSTEM</div>}
         </div>
       </div>
-
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          justifyContent: "flex-end",
-        }}
-      >
-        <Pill isMobile={isMobile}>
-          <>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Score</span>
-            <span
-              style={{
-                fontWeight: 800,
-                minWidth: 70,
-                textAlign: "right",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {ui.score}
-            </span>
-          </>
-        </Pill>
-        <Pill isMobile={isMobile}>
-          <>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Best</span>
-            <span
-              style={{
-                fontWeight: 800,
-                minWidth: 70,
-                textAlign: "right",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {ui.best}
-            </span>
-          </>
-        </Pill>
-        <Pill isMobile={isMobile}>
-          <>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Lives</span>
-            <span style={{ fontWeight: 800 }}>
-              {"●".repeat(Math.max(0, ui.lives))}
-            </span>
-          </>
-        </Pill>
-        <Pill isMobile={isMobile}>
-          <>
-            <span style={{ opacity: 0.8, fontSize: 13 }}>Combo</span>
-            <span style={{ fontWeight: 800 }}>x{ui.combo}</span>
-          </>
-        </Pill>
+      <div className="run-data">
+        {!isMobile && <div className="phase"><span>PHASE {String((ui.patternIndex || 0) + 1).padStart(2, "0")}</span><b>{ui.patternName}</b></div>}
+        <div className="stat"><span>SCORE</span><b>{String(ui.score).padStart(6, "0")}</b></div>
+        {!isMobile && <div className="stat dim"><span>PERSONAL BEST</span><b>{String(ui.best).padStart(6, "0")}</b></div>}
+        <div className={`combo ${ui.combo > 4 ? "hot" : ""}`}><span>FLOW</span><b>×{ui.combo}</b></div>
+        <AudioToggleButton onClick={onToggleMute} isMuted={ui.isMuted} />
       </div>
-    </div>
+      <div className="hud-progress" style={{ transform: `scaleX(${ui.dashProgress ?? 1})` }} />
+    </header>
   );
 }

@@ -4,20 +4,17 @@ import { GameCanvas } from "./components/GameCanvas.jsx";
 import { MobileControls } from "./components/MobileControls.jsx";
 import { OverlayCard } from "./components/OverlayCard.jsx";
 import { Button } from "./components/Button.jsx";
+import { LivesOverlay } from "./components/LivesOverlay.jsx";
 import { useGameState } from "./hooks/useGameState.js";
 import { useInput } from "./hooks/useInput.js";
-import { initAudioContext, playSound } from "./game/audio.js";
+import { initAudioContext, setAudioMuted } from "./game/audio.js";
 import { drawGame } from "./game/renderer.js";
-import {
-  performDash,
-  activatePowerUp,
-  updateGame,
-  spawnEnemy,
-} from "./game/gameEngine.js";
+import { performDash, updateGame } from "./game/gameEngine.js";
 import { clamp } from "./game/gameUtils.js";
 import { GAME_CONFIG } from "./constants/gameConstants.js";
 
 export default function NeonDodgeGame() {
+  const AUDIO_MUTED_STORAGE_KEY = "neon_dodge_audio_muted";
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const rafRef = useRef(0);
@@ -45,14 +42,20 @@ export default function NeonDodgeGame() {
     audioRef.current = initAudioContext();
   }, []);
 
-  // Load best score from localStorage
+  // Load persisted preferences and best score from localStorage
   useEffect(() => {
     const best = Math.floor(
       Number(localStorage.getItem("neon_dodge_best") || 0),
     );
+    const isMuted = localStorage.getItem(AUDIO_MUTED_STORAGE_KEY) === "true";
     gameRef.current.best = best;
-    setUi((u) => ({ ...u, best }));
-  }, []);
+    setUi((u) => ({ ...u, best, isMuted }));
+  }, [gameRef, setUi]);
+
+  useEffect(() => {
+    localStorage.setItem(AUDIO_MUTED_STORAGE_KEY, String(ui.isMuted));
+    setAudioMuted(audioRef.current, ui.isMuted);
+  }, [ui.isMuted]);
 
   const start = () => {
     cancelAnimationFrame(rafRef.current);
@@ -68,13 +71,17 @@ export default function NeonDodgeGame() {
     setUi((u) => ({ ...u, paused: g.paused }));
 
     if (!g.paused) {
-      g.last = performance.now();
+      g.last = 0;
       rafRef.current = requestAnimationFrame(loop);
     }
   };
 
+  const toggleMute = () => {
+    setUi((u) => ({ ...u, isMuted: !u.isMuted }));
+  };
+
   const onDash = (g) => {
-    performDash(g, audioRef.current, mobileScale);
+    performDash(g, audioRef.current);
   };
 
   const handleInputCallbacks = {
@@ -84,11 +91,12 @@ export default function NeonDodgeGame() {
     ui,
   };
 
-  const { joystickRef, handleJoyStart, handleJoyMove, handleJoyEnd } = useInput(
-    wrapRef,
-    gameRef,
-    handleInputCallbacks,
-  );
+  const {
+    joystickOffset,
+    handleJoyStart,
+    handleJoyMove,
+    handleJoyEnd,
+  } = useInput(wrapRef, gameRef, handleInputCallbacks);
 
   const loop = (now) => {
     const c = canvasRef.current;
@@ -117,8 +125,30 @@ export default function NeonDodgeGame() {
     drawGame(ctx, g);
 
     // Sync UI throttled
-    if (Math.floor(g.score) !== Math.floor(ui.score)) {
-      setUi((u) => ({ ...u, score: Math.floor(g.score) }));
+    if (
+      Math.floor(g.score) !== Math.floor(ui.score) ||
+      g.lives !== ui.lives ||
+      g.combo !== ui.combo ||
+      g.dashReady !== ui.dashReady ||
+      g.patternIndex !== ui.patternIndex ||
+      g.activePowerUps.length !== ui.activePowerUps.length
+    ) {
+      setUi((u) => ({
+        ...u,
+        score: Math.floor(g.score),
+        lives: g.lives,
+        combo: g.combo,
+        dashReady: g.dashReady,
+        dashProgress: g.dashReady
+          ? 1
+          : 1 - g.dashCooldown / g.dashCooldownMax,
+        patternIndex: g.patternIndex,
+        patternName: GAME_CONFIG.PATTERN_NAMES[g.patternIndex] || "NOVA FLOW",
+        activePowerUps: g.activePowerUps.map((p) => ({
+          type: p.type,
+          progress: p.duration / p.maxDuration,
+        })),
+      }));
     }
 
     // Check for game over from collision
@@ -132,6 +162,9 @@ export default function NeonDodgeGame() {
 
   const resetGame = () => {
     const g = gameRef.current;
+    const nextScore = 0;
+    const nextLives = GAME_CONFIG.INITIAL_LIVES;
+
     g.running = true;
     g.paused = false;
     g.t = 0;
@@ -143,7 +176,7 @@ export default function NeonDodgeGame() {
     g.vx = 0;
     g.vy = 0;
     g.r = GAME_CONFIG.PLAYER_RADIUS * mobileScale;
-    g.lives = GAME_CONFIG.INITIAL_LIVES;
+    g.lives = nextLives;
     g.invuln = GAME_CONFIG.INVULN_DURATION;
 
     g.dashCooldown = 0;
@@ -152,21 +185,32 @@ export default function NeonDodgeGame() {
     g.dashTrail = [];
     g.playerTrail = [];
     g.timeScale = 1;
+    g.mode = "freeplay";
+    g.patternIndex = 0;
+    g.patternElapsed = 0;
 
     g.enemies = [];
     g.particles = [];
+    g.rings = [];
+    g.nearMisses = [];
     g.powerUps = [];
     g.activePowerUps = [];
     g.spawnTimer = 0;
     g.powerUpSpawnTimer = 0;
     g.difficulty = 1;
 
-    g.score = 0;
+    g.score = nextScore;
     g.combo = 1;
     g.comboTimer = 0;
     g.lastScoreMilestone = 0;
 
     g.shake = 0;
+    g.hitFlash = 0;
+    g.chroma = 0;
+    g.dashFlash = 0;
+    g.nearMissFlash = 0;
+    g.patternFlash = 2.4;
+    g.lastPatternIndex = 0;
 
     g.prevTrailX = g.px;
     g.prevTrailY = g.py;
@@ -176,9 +220,14 @@ export default function NeonDodgeGame() {
       started: true,
       paused: false,
       gameOver: false,
-      score: 0,
-      lives: GAME_CONFIG.INITIAL_LIVES,
+      score: nextScore,
+      lives: nextLives,
       combo: 1,
+      dashReady: true,
+      dashProgress: 1,
+      patternIndex: 0,
+      patternName: "WARMUP GRID",
+      activePowerUps: [],
     }));
   };
 
@@ -250,18 +299,25 @@ export default function NeonDodgeGame() {
           gridTemplateRows: "auto 1fr",
         }}
       >
-        <GameHUD ui={ui} isMobile={isMobile} />
+        <GameHUD ui={ui} isMobile={isMobile} onToggleMute={toggleMute} />
 
         <GameCanvas
           wrapRef={wrapRef}
           canvasRef={canvasRef}
           onRender={handleCanvasResize}
-          isTouchDevice={isTouchDevice}
+          isModalOpen={
+            !ui.started ||
+            (ui.started && ui.paused && !ui.gameOver) ||
+            ui.gameOver
+          }
         >
-          {/* Mobile Joystick */}
+          {ui.started && !ui.gameOver && (
+            <LivesOverlay lives={ui.lives} isMobile={isMobile} />
+          )}
+
           {isTouchDevice && (
             <MobileControls
-              joystickRef={joystickRef}
+              joystickOffset={joystickOffset}
               onJoyStart={handleJoyStart}
               onJoyMove={handleJoyMove}
               onJoyEnd={handleJoyEnd}
@@ -270,7 +326,6 @@ export default function NeonDodgeGame() {
             />
           )}
 
-          {/* Start overlay */}
           {!ui.started && (
             <OverlayCard
               title="Nova Pulse"
@@ -285,11 +340,12 @@ export default function NeonDodgeGame() {
                   <div style={{ marginTop: 6 }}>
                     <strong>Power-Ups</strong>
                   </div>
-                  <div>🛡 Shield - Temporary invulnerability</div>
-                  <div>⚡ Speed - Move faster</div>
-                  <div>❄ Slow - Enemies move slower</div>
+                  <div>Shield - Temporary invulnerability</div>
+                  <div>Speed - Move faster</div>
+                  <div>Slow - Enemies move slower</div>
                   <div style={{ marginTop: 6, opacity: 0.85 }}>
-                    Dodge incoming orbs and keep moving to build your combo.
+                    Dodge incoming orbs, keep moving to build your combo, and
+                    adapt as enemy patterns shift over time.
                   </div>
                 </div>
               }
@@ -301,7 +357,6 @@ export default function NeonDodgeGame() {
             />
           )}
 
-          {/* Pause overlay */}
           {ui.started && ui.paused && !ui.gameOver && (
             <OverlayCard
               title="Paused"
@@ -317,14 +372,25 @@ export default function NeonDodgeGame() {
             />
           )}
 
-          {/* Game over overlay */}
           {ui.gameOver && (
             <OverlayCard
               title="Game Over"
-              subtitle={`Score: ${ui.score}  •  Best: ${ui.best}`}
+              subtitle={`Score: ${ui.score}  -  Best: ${ui.best}`}
               actions={
                 <>
                   <Button onClick={start}>Play again</Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() =>
+                      setUi((u) => ({
+                        ...u,
+                        started: false,
+                        gameOver: false,
+                      }))
+                    }
+                  >
+                    Back to Start
+                  </Button>
                 </>
               }
             />
