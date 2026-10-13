@@ -102,11 +102,9 @@ export function spawnEnemy(g, isMobile, overrideAttackType = null) {
 
 export function spawnPowerUp(g, mobileScale) {
   const types = ["shield", "speed", "slow"];
-  let type = types[Math.floor(Math.random() * types.length)];
-
-  if (g.powerUps.length && g.powerUps[g.powerUps.length - 1].type === type) {
-    type = types[(types.indexOf(type) + 1) % types.length];
-  }
+  const availableTypes = types.filter((type) => type !== g.lastPowerUpType);
+  const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+  g.lastPowerUpType = type;
 
   const side = Math.floor(rand(0, 4));
   let x = 0,
@@ -267,11 +265,15 @@ export function updateGame(dt, g, setUi, ui, audioContext) {
     }
   }
 
-  // Difficulty scaling
-  g.difficulty = Math.min(
-    GAME_CONFIG.MAX_DIFFICULTY,
-    g.t * GAME_CONFIG.DIFFICULTY_INCREMENT_RATE,
+  // Start gently, then accelerate enemy speed and spawn pressure over time.
+  // Player movement remains independent from this curve.
+  const difficultyProgress = Math.min(
+    1,
+    g.t / GAME_CONFIG.DIFFICULTY_RAMP_SECONDS,
   );
+  g.difficulty =
+    GAME_CONFIG.MAX_DIFFICULTY *
+    difficultyProgress ** GAME_CONFIG.DIFFICULTY_CURVE_EXPONENT;
 
   // Power-up spawn
   g.powerUpSpawnTimer -= realDt;
@@ -445,7 +447,11 @@ function updateEnemies(g, simDt, audioContext) {
 
     const playerDistance = Math.hypot(e.x - g.px, e.y - g.py) - e.r - g.r;
     if (playerDistance < e.nearest) e.nearest = playerDistance;
-    if (!e.grazed && e.nearest < 38 && playerDistance > e.nearest + 12) {
+    if (
+      !e.grazed &&
+      e.nearest < GAME_CONFIG.NEAR_MISS_RANGE &&
+      playerDistance > e.nearest + GAME_CONFIG.NEAR_MISS_EXIT_DISTANCE
+    ) {
       e.grazed = true;
       g.score += 35 * g.combo;
       g.combo = clamp(g.combo + 1, 1, GAME_CONFIG.COMBO_MAX);

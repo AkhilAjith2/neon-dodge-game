@@ -38,12 +38,13 @@ export function useGameState() {
     rings: [],
     nearMisses: [],
     spawnTimer: 0,
-    difficulty: 1,
+    difficulty: 0,
 
     // power-ups
     powerUps: [],
     activePowerUps: [],
     powerUpSpawnTimer: 0,
+    lastPowerUpType: null,
 
     // scoring
     score: 0,

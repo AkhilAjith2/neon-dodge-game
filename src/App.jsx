@@ -195,9 +195,10 @@ export default function NeonDodgeGame() {
     g.nearMisses = [];
     g.powerUps = [];
     g.activePowerUps = [];
+    g.lastPowerUpType = null;
     g.spawnTimer = 0;
     g.powerUpSpawnTimer = 0;
-    g.difficulty = 1;
+    g.difficulty = 0;
 
     g.score = nextScore;
     g.combo = 1;
